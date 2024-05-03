@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, SafeAreaView } from 'react-native';
+import { StyleSheet, Text, View, TextInput, SafeAreaView, TouchableOpacity, FlatList } from 'react-native';
 import Login from './src/components/Login';
+import TaskList from './src/components/TaskList';
 
 let tasks = [
   { key: '1', nome: 'Comprar Coca cola' },
@@ -10,6 +11,14 @@ let tasks = [
 export default function App() {
   const [user, setUser] = useState(null)
   const [newTask, setNewTask] = useState('')
+
+  function handleDelete(key) {
+    console.log(key)
+  }
+
+  function handleEdit(data) {
+    console.log('Item clicado: ', data);
+  }
 
   if (!user) {
     return <Login changeStatus={(user) => setUser(user)} />
@@ -33,9 +42,10 @@ export default function App() {
 
       <FlatList
         data={tasks}
+        style={styles.containerList}
         keyExtractor={item => item.key}
         renderItem={({ item }) => (
-          <TaskList data={item} />
+          <TaskList data={item} deleteItem={handleDelete} editItem={handleEdit} />
         )}
       />
 
@@ -48,10 +58,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 25,
     paddingHorizontal: 10,
-    backgroundColor: '#F2f6fc'
+    backgroundColor: '#F2f6fC'
   },
   containerTask: {
-    flexDirection: 'row'
+    flexDirection: 'row',
+    paddingHorizontal: 10,
   },
   input: {
     flex: 1,
@@ -75,5 +86,8 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#FFF',
     fontSize: 22,
+  },
+  containerList: {
+    paddingHorizontal: 10
   }
 })
