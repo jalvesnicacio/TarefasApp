@@ -1,23 +1,130 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, SafeAreaView, TouchableOpacity, FlatList } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, TextInput, SafeAreaView, TouchableOpacity, FlatList, Keyboard } from 'react-native';
 import Login from './src/components/Login';
 import TaskList from './src/components/TaskList';
+import { database } from './src/services/firebaseConnection';
+import { ref, child, set, push, get, remove, update } from 'firebase/database';
+import Feather from '@expo/vector-icons/Feather'
 
-let tasks = [
-  { key: '1', nome: 'Comprar Coca cola' },
-  { key: '2', nome: 'Estudar javascript' }
-]
 
 export default function App() {
   const [user, setUser] = useState(null)
+  const [tasks, setTasks] = useState([])
   const [newTask, setNewTask] = useState('')
+  const [key, setKey] = useState('')
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    function getUser() {
+      if (!user) {
+        return
+      }
+
+      const tarefasRef = ref(database, 'tarefas');
+      const userTarefasRef = child(tarefasRef, user);
+      const listaTarefas = get(userTarefasRef)
+        .then((snapshot) => {
+          if (snapshot.exists()) {
+            // console.log('Dados encontrados:', snapshot.val())
+            setTasks([]);
+            snapshot.forEach((childItem) => {
+              let data = {
+                key: childItem.key,
+                nome: childItem.val().nome
+              }
+              setTasks(oldTasks => [...oldTasks, data]);
+            })
+          } else {
+            console.log('Nenhum dado encontrado')
+          }
+        })
+        .catch((error) => {
+          console.error('Erro ao ler os dados:', error)
+        });
+    }
+    getUser();
+  }, [user])
+
+
+  function handleAdd() {
+    if (newTask === '') {
+      return;
+    }
+
+    // Referência para o nó "tarefas"
+    const tarefasRef = ref(database, 'tarefas');
+
+    // Referência para o nó do usuário atual dentro de "tarefas"
+    const userTarefasRef = child(tarefasRef, user);
+
+    // Usuario quer editar tarefa
+    if (key !== '') {
+      const editTarefa = child(userTarefasRef, key)
+      update(editTarefa, {
+        nome: newTask
+      })
+        .then(() => {
+          const taskIndex = tasks.findIndex(item => item.key === key)
+          const taskClone = tasks
+          taskClone[taskIndex].nome = newTask
+          setTasks([...taskClone])
+        })
+        .catch((error) => {
+          console.error('Erro ao editar tarefa:', error);
+        });
+
+      Keyboard.dismiss()
+      setKey('')
+      setNewTask('')
+
+    }
+    // Usuario quer criar nova tarefa:
+    else {
+      const novaTarefaRef = push(userTarefasRef);
+      let chave = novaTarefaRef.key;
+
+      set(child(userTarefasRef, chave), {
+        nome: newTask
+      })
+        .then(() => {
+          const data = {
+            key: chave,
+            nome: newTask
+          }
+          setTasks(oldTasks => [...oldTasks, data])
+        })
+        .catch((error) => {
+          console.error('Erro ao adicionar tarefa:', error);
+        });
+      Keyboard.dismiss();
+      setNewTask('');
+    }
+  }
 
   function handleDelete(key) {
-    console.log(key)
+    const tarefasRef = ref(database, 'tarefas');
+    const userTarefasRef = child(tarefasRef, user);
+    const deleteTarefa = child(userTarefasRef, key);
+    remove(deleteTarefa)
+      .then(() => {
+        const findTasks = tasks.filter(item => item.key !== key)
+        setTasks(findTasks)
+      })
+      .catch((error) => {
+        console.error('Erro ao deletar tarefa:', error);
+      });
   }
 
   function handleEdit(data) {
-    console.log('Item clicado: ', data);
+    setKey(data.key)
+    setNewTask(data.nome)
+    inputRef.current.focus()
+  }
+
+  function cancelEdit() {
+    setKey('')
+    setNewTask('')
+    Keyboard.dismiss()
   }
 
   if (!user) {
@@ -26,6 +133,16 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {key.length > 0 && (
+        <View style={{ flexDirection: 'row', padding: 10 }}>
+          <TouchableOpacity onPress={cancelEdit}>
+            <Feather name="x-circle" size={20} color="#ff0000" />
+          </TouchableOpacity>
+          <Text style={{ marginLeft: 5, color: "#ff0000" }}>
+            Você está editando uma tarefa!
+          </Text>
+        </View>
+      )}
 
       <View style={styles.containerTask}>
         <TextInput
@@ -33,8 +150,9 @@ export default function App() {
           placeholder="O que vai fazer hoje?"
           value={newTask}
           onChangeText={(text) => setNewTask(text)}
+          ref={inputRef}
         />
-        <TouchableOpacity style={styles.buttonAdd}>
+        <TouchableOpacity style={styles.buttonAdd} onPress={handleAdd}>
           <Text style={styles.buttonText}>+</Text>
         </TouchableOpacity>
       </View>
@@ -49,7 +167,7 @@ export default function App() {
         )}
       />
 
-    </SafeAreaView>
+    </SafeAreaView >
   );
 }
 
